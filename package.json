@@ -1,0 +1,16 @@
+{
+  "name": "jeogeumido",
+  "version": "1.0.0",
+  "private": true,
+  "description": "저금이돈 - AI 기반 맞춤형 지출 관리 & 절약 코칭 서비스",
+  "scripts": {
+    "setup": "npm install && npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -k -n server,client -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

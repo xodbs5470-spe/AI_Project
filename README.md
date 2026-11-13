@@ -1,0 +1,131 @@
+# 🐷 저금이돈 — AI 기반 맞춤형 지출 관리 & 절약 코칭
+
+목표 금액과 기간에 맞춰 AI가 일일 지출 한도를 계산하고, 지출 내역을 분석해 피드백과 예산 리밸런싱을 제공하는 가계부 서비스입니다.
+
+## 주요 기능
+
+| 기능 | 설명 |
+|---|---|
+| 일일 지출 한도 | (보유 자산 + 기간 내 수입 − 목표 금액 − 고정 지출 − 이미 쓴 돈) ÷ 남은 일수, 100원 단위 |
+| 수입 반영 | 월 수입과 수입일을 입력하면 기간 내 월급날마다 예정 수입 자동 등록. 지금 가진 돈보다 큰 목표도 설정 가능 |
+| 수입·지출 기록 후 재계산 | 기록할 때마다 남은 기간 하루 한도를 다시 계산해 변화(이전 → 이후)를 보여줌 |
+| 점심 메뉴 추천 | 일일 한도 × 점심 비율로 점심 예산 산출, AI가 예산 이하 메뉴를 예상 가격과 함께 추천 (예산 초과 메뉴는 서버에서 걸러냄) |
+| AI 소비 분석 | 하루 지출을 0~100점으로 평가, 낭비 요인과 내일 실천할 행동 제시 |
+| 돌발 지출 리밸런싱 | 예상 못 한 지출을 남은 기간에 나눠 한도를 재조정하고 AI가 조정안 제시 |
+| AI 빠른 입력 | 카드·은행 결제 알림 문자나 "점심 김밥 4천원이랑 커피 4500원" 같은 문장을 붙여 넣으면 AI가 수입/지출·금액·날짜·카테고리로 나눠 미리보기 → 확인 후 한 번에 등록. 취소 문자·잔액은 제외, 중복 의심 항목 표시, 이름 등 개인정보는 메모에서 제외 |
+| 영수증 사진 인식 | 영수증을 찍어 올리면 AI(비전)가 가게명·결제 금액·날짜·카테고리를 읽어 미리보기에 채움. 사진은 브라우저에서 1600px로 줄여서 전송 |
+| 대화형 AI 코치 | "주말 술 약속에 얼마까지 써도 돼?"처럼 물으면 AI가 **함수 호출(function calling)** 로 내 예산·지출 내역·일별 기록을 직접 조회하고 시뮬레이션한 뒤 답함. 어떤 도구를 썼는지 답변 위에 표시 |
+| 이거 사도 될까? | 물건과 가격을 넣으면 코드가 구매 후 하루 한도·목표 달성 여부를 계산하고, AI가 사도 됨 / 미루기 / 참기 판정과 이유·대안 제시. 목표를 못 지키는 구매는 AI가 "사도 됨"이라 해도 서버가 막음 |
+| 금액 입력 | 입력 중 쉼표 표시 + `20만원`처럼 한국식 단위로 바로 보여줌, +1만 같은 빠른 입력 버튼 |
+| 대시보드 | 최근 14일 지출 vs 한도 차트, 카테고리별 지출 |
+
+## 기술 스택
+
+- **Frontend**: React 19 + Vite, Recharts
+- **Backend**: Node.js + Express 5
+- **Database**: PostgreSQL (`pg`) — 설치 없이 실행되는 내장 PostgreSQL(`embedded-postgres`) 기본 제공
+- **AI**: OpenAI GPT-4o-mini (메인) / Google Gemini (보조), Structured Output(JSON 스키마)으로 응답 형식 고정
+
+## 실행 방법
+
+```bash
+# 1. 패키지 설치 (처음 한 번)
+npm run setup
+
+# 2. server/.env 에 API 키 입력
+#    OPENAI_API_KEY=sk-...
+#    GEMINI_API_KEY=...
+
+# 3. 실행 (백엔드 + 프론트엔드 동시 실행)
+npm run dev
+```
+
+브라우저에서 **http://localhost:5173** 접속
+
+- 처음 실행 시 내장 PostgreSQL 초기화에 10~20초 정도 걸립니다. 데이터는 `.pgdata/` 폴더에 저장됩니다.
+- API 키가 없어도 앱은 동작합니다. 이 경우 규칙 기반 '기본 코치'가 응답합니다.
+- `npm test`: 예산 계산 로직 단위 테스트
+
+### 휴대폰에서 쓰기
+
+PC와 휴대폰이 같은 와이파이에 연결돼 있으면, `npm run dev` 실행 시 터미널에 나오는 `Network: http://192.168.x.x:5173` 주소를 휴대폰 브라우저로 열면 됩니다. 결제 문자를 휴대폰에서 바로 복사해 붙여 넣을 수 있습니다. (처음에 Windows 방화벽 허용 창이 뜨면 '개인 네트워크' 허용)
+
+### AI 공급자 설정 (`server/.env`)
+
+```
+AI_PROVIDER=openai     # 메인 공급자 (openai | gemini)
+OPENAI_MODEL=gpt-4o-mini
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+메인 공급자 호출이 실패하면 키가 있는 다른 공급자로 자동 전환되고, 둘 다 실패하면 규칙 기반 응답을 사용합니다. 개발 중에는 `AI_PROVIDER=gemini`(무료 할당량)로 테스트하고, 시연할 때 `openai`로 바꾸는 식으로 쓸 수 있습니다.
+
+### 외부 DB 사용 (선택)
+
+`server/.env`의 `DATABASE_URL`에 PostgreSQL 주소(예: Supabase)를 넣으면 내장 DB 대신 그 DB를 사용합니다. 테이블은 서버 시작 시 자동 생성됩니다.
+
+## 프로젝트 구조
+
+```
+Ai_project/
+├─ client/                     React (Vite)
+│  └─ src/
+│     ├─ App.jsx               탭 구성, 데이터 로딩
+│     ├─ api.js                백엔드 호출 함수
+│     └─ components/
+│        ├─ GoalForm.jsx       목표 설정
+│        ├─ Dashboard.jsx      오늘 한도, 점심값, 차트
+│        ├─ MoneyInput.jsx     금액 입력 (쉼표, '20만원' 표시)
+│        ├─ ExpensePanel.jsx   수입·지출 기록, 재계산 결과
+│        ├─ QuickInput.jsx     AI 빠른 입력 (결제 문자/문장, 영수증 사진)
+│        ├─ CoachPanel.jsx     AI 코치 챗봇, "이거 사도 될까?"
+│        └─ ReportPanel.jsx    AI 소비 리포트
+└─ server/                     Express
+   ├─ .env                     API 키 (Git에 올리지 않음)
+   ├─ src/
+   │  ├─ index.js              서버 진입점
+   │  ├─ routes.js             REST API
+│  ├─ data.js               목표·수입·지출 조회 (라우트와 챗봇이 같이 씀)
+   │  ├─ db.js                 PostgreSQL 연결, 내장 DB 실행
+   │  ├─ schema.sql            테이블 정의
+   │  └─ services/
+   │     ├─ budget.js          한도/리밸런싱 계산 (순수 함수)
+   │     ├─ ai.js              OpenAI / Gemini 호출, 자동 전환, 이미지 입력, 함수 호출 루프
+│     ├─ assistant.js       챗봇이 쓰는 도구(함수) 정의와 실행
+   │     ├─ coach.js           AI 프롬프트, 응답 스키마, 기본 코치
+   │     └─ parser.js          결제 문자/문장 해석 (AI + 정규식 대체 파서)
+   └─ test/                    계산·문자 해석 테스트
+```
+
+## API
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/health` | 서버 상태, 사용 가능한 AI 공급자 |
+| GET / POST | `/api/goal` | 현재 목표 조회 / 새 목표 설정 |
+| GET | `/api/budget/today` | 오늘 한도, 점심값, 차트 데이터 |
+| POST | `/api/coach/lunch` | 점심 예산에 맞는 메뉴 추천 (하루 단위 캐시, `refresh: true`로 새로 받기) |
+| GET | `/api/expenses?date=YYYY-MM-DD` | 날짜별 지출 |
+| POST | `/api/expenses` | 지출 기록 + 한도 재계산 결과 (`is_unexpected: true`면 AI 조언 포함) |
+| DELETE | `/api/expenses/:id` | 지출 삭제 |
+| GET | `/api/incomes[?date=YYYY-MM-DD]` | 수입 목록 (예정 수입 포함) |
+| POST | `/api/incomes` | 수입 기록 + 한도 재계산 결과 |
+| DELETE | `/api/incomes/:id` | 수입 삭제 (예정 수입이 실제와 다를 때) |
+| POST | `/api/parse` | 결제 문자/문장 → 수입·지출 미리보기 (저장 안 함) |
+| POST | `/api/parse-image` | 영수증 사진(data URL) → 지출 미리보기 (AI 키 필요) |
+| POST | `/api/coach/purchase` | `{ item, amount }` → 구매 시뮬레이션 + AI 판정 |
+| POST | `/api/chat` | `{ message, history }` → AI 코치 답변 + 사용한 도구 목록 |
+| POST | `/api/records/bulk` | 확인한 항목 일괄 등록 + 한도 재계산 결과 |
+| GET / POST | `/api/analysis/daily` | AI 소비 리포트 조회 / 생성 |
+
+## 설계 포인트
+
+- **계산은 코드, 해석은 AI**: 금액 계산은 `budget.js`가 정확히 하고, AI에는 계산된 숫자만 넘겨 평가와 조언을 받습니다. LLM의 계산 실수를 막기 위해서입니다.
+- **자동 리밸런싱**: 오늘 한도는 '어제까지 쓴 돈' 기준이라 하루 중에는 바뀌지 않고, 초과분이나 돌발 지출은 다음 날부터 남은 일수에 자동으로 나뉩니다.
+- **함수 호출로 근거 있는 대화**: 챗봇은 숫자를 지어내지 않도록 `get_budget_status`, `get_spending_summary`, `get_transactions`, `get_daily_history`, `simulate_purchase` 도구를 호출해 실제 데이터를 받은 뒤에만 답합니다 (한 질문에 최대 6단계).
+- **API 키 보호**: 키는 백엔드에만 있고, 프론트엔드는 `/api`를 거쳐서만 AI를 사용합니다.
+
+## 문제 해결
+
+- **서버가 DB 시작 단계에서 멈추거나 실패할 때**: 서버를 강제 종료한 뒤라면 `.pgdata/postmaster.pid` 파일을 지우고 다시 실행하세요.
+- **DB를 완전히 초기화하려면**: 서버를 끄고 `.pgdata/` 폴더를 삭제하세요. 모든 데이터가 지워집니다.
