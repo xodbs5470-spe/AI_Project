@@ -106,7 +106,7 @@ function ruleParse(text, today) {
       ignored.push(`${chunk.slice(0, 30)} → 취소 문자`);
       continue;
     }
-    const amount = parseAmount(chunk.replace(/잔액\s*[\d,]+\s*원?/g, ''));
+    const amount = parseAmount(chunk.replace(/(?:누적|잔액|잔고)\s*[\d,]+\s*원?/g, ''));
     if (!amount) {
       ignored.push(`${chunk.slice(0, 30)} → 금액을 찾지 못함`);
       continue;
@@ -121,6 +121,7 @@ function ruleParse(text, today) {
       merchant ||
       chunk
         .replace(/\[.*?\]/g, '')
+        .replace(/(?:누적|잔액|잔고)\s*[\d,]*\s*원?/g, '')
         // 금액 표현 제거: 6,500원 / 4천원 / 1만 2천원 (숫자 없는 '원'은 '병원' 같은 단어라 유지)
         .replace(/(?:\d+\s*만(?:\s*\d+\s*천)?|\d+\s*천|\d[\d,]*)\s*원(?:\([^)]*\))?/g, '')
         .replace(/\d{1,2}[/.-]\d{1,2}|\d{1,2}:\d{2}/g, '')

@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { api, koreanWon, PROVIDER_LABEL } from '../api.js';
-import MoneyInput from './MoneyInput.jsx';
-
-const CATEGORIES = ['식비', '카페/간식', '교통', '쇼핑', '문화/여가', '생활', '의료', '기타'];
+import { Camera, ReceiptText } from 'lucide-react';
+import { api, koreanWon } from '../api.js';
+import PreviewList, { toRecord } from './PreviewList.jsx';
+import { AiTag } from './ui.jsx';
 
 const SAMPLE = `[신한카드] 승인 홍*동 6,500원 11/13 14:22 스타벅스
 [KB국민체크] 홍*동님 4,000원 승인 11/13 12:05 김밥천국 누적 120,000원
 [카카오뱅크] 입금 50,000원 11/13 09:00 용돈
 퇴근길 택시 1만 2천원`;
+
+const PLACEHOLDER = '[신한카드] 승인 6,500원 스타벅스\n또는: 점심 김밥 4천원이랑 커피 4500원';
 
 /** 사진을 긴 변 1600px JPEG로 줄여서 data URL로 (업로드 용량·AI 비용 절약) */
 function resizeImage(file, maxSide = 1600) {
@@ -79,16 +81,18 @@ export default function QuickInput({ onDone }) {
     setPreview((p) => ({ ...p, items: p.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
   }
 
+  function reset() {
+    setPreview(null);
+    setPhoto(null);
+  }
+
   async function save() {
     const chosen = preview.items.filter((i) => i.selected);
     setSaving(true);
     setError('');
     try {
-      const res = await api.bulk(
-        chosen.map(({ type, amount, date, category, memo }) => ({ type, amount: Number(amount), date, category, memo })),
-      );
-      setPreview(null);
-      setPhoto(null);
+      const res = await api.bulk(chosen.map(toRecord));
+      reset();
       setText('');
       onDone(res.recalculation);
     } catch (e) {
@@ -102,30 +106,29 @@ export default function QuickInput({ onDone }) {
   const net = chosen.reduce((a, i) => a + (i.type === 'income' ? 1 : -1) * (Number(i.amount) || 0), 0);
 
   return (
-    <section className="card wide quick-input">
-      <div className="card-head">
-        <h3>✨ AI 빠른 입력</h3>
-        <span className="muted small">결제 문자 · 입금 문자 · 문장 · 영수증 사진</span>
+    <section className="card quick-input">
+      <div className="card-title">
+        <ReceiptText size={18} />
+        <h3>문자·영수증으로 한 번에</h3>
+        <AiTag />
       </div>
 
       {!preview ? (
         <>
-          <textarea
-            rows={5}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={'카드 결제 문자를 여러 개 한꺼번에 붙여 넣거나, 문장으로 적어 보세요.\n예) 점심 김밥 4천원이랑 커피 4500원'}
-          />
+          <p className="hint">카드 결제 문자를 여러 개 붙여 넣거나 영수증 사진을 올리면, 알아서 나눠서 정리해 드려요.</p>
+          <textarea className="input" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={PLACEHOLDER} />
           <div className="actions">
-            <button type="button" className="link" onClick={() => setText(SAMPLE)}>
-              예시 넣어 보기
+            <button type="button" className="btn text" onClick={() => setText(SAMPLE)}>
+              예시 넣기
             </button>
-            <label className={`photo-btn ${loading ? 'disabled' : ''}`}>
-              {loading === 'photo' ? '📷 AI가 영수증 읽는 중...' : '📷 영수증 사진'}
+            <span className="spacer" />
+            <label className={`btn subtle ${loading ? 'disabled' : ''}`}>
+              <Camera size={16} />
+              {loading === 'photo' ? '읽는 중…' : '영수증 사진'}
               <input type="file" accept="image/*" onChange={analyzePhoto} disabled={Boolean(loading)} hidden />
             </label>
-            <button type="button" className="primary" onClick={analyze} disabled={Boolean(loading) || !text.trim()}>
-              {loading === 'text' ? 'AI가 읽는 중...' : 'AI로 분석하기'}
+            <button type="button" className="btn primary" onClick={analyze} disabled={Boolean(loading) || !text.trim()}>
+              {loading === 'text' ? '읽는 중…' : '읽어오기'}
             </button>
           </div>
           {loading === 'photo' && photo && <img className="receipt-thumb" src={photo} alt="올린 영수증" />}
@@ -133,64 +136,15 @@ export default function QuickInput({ onDone }) {
       ) : (
         <>
           {photo && <img className="receipt-thumb" src={photo} alt="올린 영수증" />}
-          <p className="small">
-            <b>{preview.items.length}건</b>을 찾았어요. 확인하고 틀린 부분은 고친 뒤 등록하세요.{' '}
-            <span className="provider inline">by {PROVIDER_LABEL[preview.provider]}</span>
+          <p className="hint">
+            <b>{preview.items.length}건</b>을 찾았어요. 틀린 부분은 고친 뒤 등록하세요.
           </p>
 
-          <ul className="parsed">
-            {preview.items.map((it, idx) => (
-              <li key={idx} className={it.selected ? '' : 'off'}>
-                <input
-                  type="checkbox"
-                  checked={it.selected}
-                  onChange={(e) => update(idx, { selected: e.target.checked })}
-                  aria-label="등록할지 선택"
-                />
-                <button
-                  type="button"
-                  className={`type-pill ${it.type}`}
-                  onClick={() => update(idx, { type: it.type === 'income' ? 'expense' : 'income' })}
-                  title="눌러서 수입/지출 바꾸기"
-                >
-                  {it.type === 'income' ? '수입' : '지출'}
-                </button>
-                <input
-                  className="memo"
-                  value={it.memo}
-                  onChange={(e) => update(idx, { memo: e.target.value })}
-                  placeholder="메모"
-                />
-                <div className="amount-cell">
-                  <MoneyInput value={it.amount} onChange={(amount) => update(idx, { amount })} />
-                </div>
-                {it.type === 'expense' ? (
-                  <select className="cat" value={it.category} onChange={(e) => update(idx, { category: e.target.value })}>
-                    {CATEGORIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="muted small center-text">-</span>
-                )}
-                <input
-                  className="date"
-                  type="date"
-                  value={it.date}
-                  onChange={(e) => update(idx, { date: e.target.value })}
-                />
-                {(it.duplicate || !it.inPeriod) && (
-                  <span className="warn-note">
-                    {it.duplicate ? '⚠ 같은 날 같은 금액이 이미 기록돼 있어요 (중복?)' : '⚠ 목표 기간 밖의 날짜예요'}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <PreviewList items={preview.items} onUpdate={update} />
 
           {preview.ignored.length > 0 && (
             <details className="ignored">
-              <summary>등록하지 않은 내용 {preview.ignored.length}건</summary>
+              <summary>건너뛴 내용 {preview.ignored.length}건</summary>
               <ul>
                 {preview.ignored.map((g) => (
                   <li key={g}>{g}</li>
@@ -200,20 +154,12 @@ export default function QuickInput({ onDone }) {
           )}
 
           <div className="actions">
-            <button
-              type="button"
-              className="link"
-              onClick={() => {
-                setPreview(null);
-                setPhoto(null);
-              }}
-            >
+            <button type="button" className="btn text" onClick={reset}>
               다시 입력
             </button>
-            <button type="button" className="primary" onClick={save} disabled={saving || chosen.length === 0}>
-              {saving
-                ? '등록 중...'
-                : `선택한 ${chosen.length}건 등록 (${net >= 0 ? '+' : ''}${koreanWon(net)})`}
+            <span className="spacer" />
+            <button type="button" className="btn primary" onClick={save} disabled={saving || chosen.length === 0}>
+              {saving ? '등록하는 중…' : `${chosen.length}건 등록 (${net >= 0 ? '+' : ''}${koreanWon(net)})`}
             </button>
           </div>
         </>

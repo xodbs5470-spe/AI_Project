@@ -17,12 +17,13 @@
 | 영수증 사진 인식 | 영수증을 찍어 올리면 AI(비전)가 가게명·결제 금액·날짜·카테고리를 읽어 미리보기에 채움. 사진은 브라우저에서 1600px로 줄여서 전송 |
 | 대화형 AI 코치 | "주말 술 약속에 얼마까지 써도 돼?"처럼 물으면 AI가 **함수 호출(function calling)** 로 내 예산·지출 내역·일별 기록을 직접 조회하고 시뮬레이션한 뒤 답함. 어떤 도구를 썼는지 답변 위에 표시 |
 | 이거 사도 될까? | 물건과 가격을 넣으면 코드가 구매 후 하루 한도·목표 달성 여부를 계산하고, AI가 사도 됨 / 미루기 / 참기 판정과 이유·대안 제시. 목표를 못 지키는 구매는 AI가 "사도 됨"이라 해도 서버가 막음 |
+| 아이폰 결제 문자 자동 입력 | 아이폰 단축어가 결제 문자를 서버로 보내면 AI가 해석해 확인 대기함에 넣거나(기본) 바로 등록. 대기 건수는 탭 배지로, 자동 등록되면 화면이 알아서 새로고침 |
 | 금액 입력 | 입력 중 쉼표 표시 + `20만원`처럼 한국식 단위로 바로 보여줌, +1만 같은 빠른 입력 버튼 |
 | 대시보드 | 최근 14일 지출 vs 한도 차트, 카테고리별 지출 |
 
 ## 기술 스택
 
-- **Frontend**: React 19 + Vite, Recharts
+- **Frontend**: React 19 + Vite, Recharts, lucide-react(아이콘)
 - **Backend**: Node.js + Express 5
 - **Database**: PostgreSQL (`pg`) — 설치 없이 실행되는 내장 PostgreSQL(`embedded-postgres`) 기본 제공
 - **AI**: OpenAI GPT-4o-mini (메인) / Google Gemini (보조), Structured Output(JSON 스키마)으로 응답 형식 고정
@@ -50,6 +51,20 @@ npm run dev
 ### 휴대폰에서 쓰기
 
 PC와 휴대폰이 같은 와이파이에 연결돼 있으면, `npm run dev` 실행 시 터미널에 나오는 `Network: http://192.168.x.x:5173` 주소를 휴대폰 브라우저로 열면 됩니다. 결제 문자를 휴대폰에서 바로 복사해 붙여 넣을 수 있습니다. (처음에 Windows 방화벽 허용 창이 뜨면 '개인 네트워크' 허용)
+
+### 아이폰 결제 문자 자동 입력
+
+아이폰 **단축어** 앱의 '메시지 수신' 자동화(iOS 17 이상)로 카드 결제 문자를 받자마자 서버에 보내면, AI가 해석해서 기록합니다.
+
+1. 앱의 **설정** 탭 → "아이폰 결제 문자 자동 입력"에서 처리 방식을 고릅니다.
+   - **확인하고 기록**(기본): 가계부 탭의 "폰에서 받은 결제"에 쌓이고, 확인·수정 후 등록
+   - **바로 기록**: 즉시 기록하고 한도 재계산. 중복이 의심되거나 기간 밖인 결제만 확인 대기로 보냄
+2. 같은 화면의 주소(`http://<PC IP>:5173/api/sms/webhook?token=…`)를 아이폰 Safari로 열어 "연결 성공"을 확인합니다.
+3. 단축어 → 자동화 → 새로운 자동화 → **메시지** → '메시지에 포함'에 `승인` → **즉시 실행** → 빈 자동화 → **URL 내용 가져오기** 추가
+4. URL에 위 주소, 방법 `POST`, 요청 본문 `JSON`, 필드 `text` = 단축어 입력의 **내용**
+5. (선택) **알림 보기** 동작에 'URL의 내용'을 넣으면 "지출 6,500원 자동 등록" 같은 결과가 알림으로 뜹니다.
+
+자세한 순서는 앱 설정 화면에 있습니다. PC 서버가 켜져 있고 폰이 같은 와이파이에 있을 때만 동작하며, 문자 없이 앱 알림으로만 오는 결제(토스·카카오페이 등)는 아이폰에서 읽을 수 없습니다. 주소의 토큰이 새어 나가면 "주소 새로 만들기"로 바꾸세요.
 
 ### AI 공급자 설정 (`server/.env`)
 
@@ -80,6 +95,9 @@ Ai_project/
 │        ├─ ExpensePanel.jsx   수입·지출 기록, 재계산 결과
 │        ├─ QuickInput.jsx     AI 빠른 입력 (결제 문자/문장, 영수증 사진)
 │        ├─ CoachPanel.jsx     AI 코치 챗봇, "이거 사도 될까?"
+│        ├─ PreviewList.jsx    AI가 해석한 수입/지출 미리보기 표 (공용)
+│        ├─ SmsInbox.jsx       폰에서 받은 결제 확인 대기함
+│        ├─ SmsSettings.jsx    아이폰 단축어 연결 설정
 │        └─ ReportPanel.jsx    AI 소비 리포트
 └─ server/                     Express
    ├─ .env                     API 키 (Git에 올리지 않음)
@@ -87,6 +105,8 @@ Ai_project/
    │  ├─ index.js              서버 진입점
    │  ├─ routes.js             REST API
 │  ├─ data.js               목표·수입·지출 조회 (라우트와 챗봇이 같이 씀)
+│  ├─ records.js            여러 건 미리보기·검증·저장 (빠른 입력, 영수증, 폰 문자 공용)
+│  ├─ sms.js                폰 결제 문자 수신(webhook), 대기함, 연결 설정
    │  ├─ db.js                 PostgreSQL 연결, 내장 DB 실행
    │  ├─ schema.sql            테이블 정의
    │  └─ services/
@@ -116,6 +136,13 @@ Ai_project/
 | POST | `/api/parse-image` | 영수증 사진(data URL) → 지출 미리보기 (AI 키 필요) |
 | POST | `/api/coach/purchase` | `{ item, amount }` → 구매 시뮬레이션 + AI 판정 |
 | POST | `/api/chat` | `{ message, history }` → AI 코치 답변 + 사용한 도구 목록 |
+| POST | `/api/sms/webhook?token=` | 폰에서 결제 문자 수신 `{ text }` (또는 text/plain). 결과를 짧은 문장으로 응답 |
+| GET | `/api/sms/webhook?token=` | 연결 확인용 (기록하지 않음) |
+| GET | `/api/sms/status` | 확인 대기 건수, 마지막 자동 등록 시각 |
+| GET | `/api/sms/inbox` | 확인 대기 중인 문자와 최근 자동 등록 내역 |
+| POST | `/api/sms/inbox/dismiss` | `{ ids }` 대기 항목 무시 (등록은 `/api/records/bulk`에 `inboxIds`를 함께 보냄) |
+| GET / PUT | `/api/sms/settings` | 처리 방식(`inbox` / `auto`), 토큰, PC의 와이파이 주소 |
+| POST | `/api/sms/settings/token` | 연결 토큰 재발급 |
 | POST | `/api/records/bulk` | 확인한 항목 일괄 등록 + 한도 재계산 결과 |
 | GET / POST | `/api/analysis/daily` | AI 소비 리포트 조회 / 생성 |
 

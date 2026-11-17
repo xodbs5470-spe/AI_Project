@@ -26,7 +26,18 @@ export const api = {
   parseImage: (image) => request('POST', '/parse-image', { image }),
   purchase: (item, amount) => request('POST', '/coach/purchase', { item, amount }),
   chat: (message, history) => request('POST', '/chat', { message, history }),
-  bulk: (items) => request('POST', '/records/bulk', { items }),
+  bulk: (items, inboxIds) => request('POST', '/records/bulk', { items, inboxIds }),
+  smsStatus: () => request('GET', '/sms/status'),
+  smsInbox: () => request('GET', '/sms/inbox'),
+  smsDismiss: (ids) => request('POST', '/sms/inbox/dismiss', { ids }),
+  smsSettings: () => request('GET', '/sms/settings'),
+  setSmsMode: (mode) => request('PUT', '/sms/settings', { mode }),
+  rotateSmsToken: () => request('POST', '/sms/settings/token'),
+  /** 연결 확인 (기록하지 않음) → 서버 안내 문구 */
+  smsPing: async (token) => {
+    const res = await fetch(`/api/sms/webhook?token=${encodeURIComponent(token)}`);
+    return { ok: res.ok, text: await res.text() };
+  },
   getReport: (date) => request('GET', `/analysis/daily?date=${date}`),
   analyze: (date) => request('POST', '/analysis/daily', { date }),
 };
@@ -75,3 +86,13 @@ export function paydaysBetween(start, end, day) {
 }
 
 export const PROVIDER_LABEL = { openai: 'OpenAI', gemini: 'Gemini', rule: '기본 코치' };
+
+/** '3분 전' 같은 상대 시간 */
+export function timeAgo(iso) {
+  if (!iso) return '';
+  const sec = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 60) return '방금';
+  if (sec < 3600) return `${Math.floor(sec / 60)}분 전`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}시간 전`;
+  return `${Math.floor(sec / 86400)}일 전`;
+}

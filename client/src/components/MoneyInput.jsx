@@ -6,7 +6,7 @@ const MAX = 2_000_000_000;
  * 금액 입력칸: 입력하는 동안 쉼표를 넣고, 아래에 '20만원'처럼 읽기 쉬운 금액을 보여준다.
  * value: number | '' , onChange(number | '')
  */
-export default function MoneyInput({ value, onChange, placeholder, required, quick }) {
+export default function MoneyInput({ value, onChange, placeholder, required, quick, big = false }) {
   const display = value === '' || value == null ? '' : Number(value).toLocaleString('ko-KR');
 
   function handle(e) {
@@ -15,7 +15,7 @@ export default function MoneyInput({ value, onChange, placeholder, required, qui
   }
 
   return (
-    <div className="money">
+    <div className={`money ${big ? 'big' : ''}`}>
       <div className="money-box">
         <input
           inputMode="numeric"

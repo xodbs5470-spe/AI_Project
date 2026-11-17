@@ -53,3 +53,26 @@ CREATE TABLE IF NOT EXISTS daily_reports (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (goal_id, report_date)
 );
+
+-- 앱 설정 (폰 문자 연동 토큰, 등록 방식 등)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT  PRIMARY KEY,
+  value JSONB NOT NULL
+);
+
+-- 폰(아이폰 단축어)에서 받은 결제 문자
+--   pending: 확인 대기 / saved: 등록됨 / dismissed: 사용자가 무시 / ignored: 결제 내용 없음
+CREATE TABLE IF NOT EXISTS sms_inbox (
+  id          SERIAL PRIMARY KEY,
+  goal_id     INTEGER     NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+  raw         TEXT        NOT NULL,
+  items       JSONB       NOT NULL DEFAULT '[]',
+  ignored     JSONB       NOT NULL DEFAULT '[]',
+  provider    TEXT        NOT NULL DEFAULT 'rule',
+  status      TEXT        NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending', 'saved', 'dismissed', 'ignored')),
+  auto_saved  BOOLEAN     NOT NULL DEFAULT FALSE,   -- 자동 등록 모드로 바로 저장된 경우
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sms_inbox_goal_status ON sms_inbox (goal_id, status);
